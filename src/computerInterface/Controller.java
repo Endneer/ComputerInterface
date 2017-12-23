@@ -15,7 +15,8 @@ public class Controller {
 
     private SerialPort[] serialPorts;
     private SerialPort selectedPort;
-    
+
+    private int readData = 000;
 
 
     @FXML
@@ -35,6 +36,10 @@ public class Controller {
         selectedPort.setComPortParameters(2400, 8, 1, 0);
 
         selectedPort.addDataListener(new SerialPortDataListener() {
+
+            int numberOfCharacters = 0;
+            String buffer = "";
+
             @Override
             public int getListeningEvents() {
                 return SerialPort.LISTENING_EVENT_DATA_AVAILABLE;
@@ -46,9 +51,17 @@ public class Controller {
                     return;
                 byte[] newData = new byte[selectedPort.bytesAvailable()];
                 selectedPort.readBytes(newData, newData.length);
-                String out = new String(newData);
+                String in = new String(newData);
                 try {
-                    System.out.print(Integer.parseInt(out));
+                    if (numberOfCharacters < 3) {
+                        buffer = buffer + Integer.parseInt(in);
+                        numberOfCharacters++;
+                    } else {
+                        numberOfCharacters = 0;
+                        readData = Integer.parseInt(buffer);
+                        buffer = "";
+                        System.out.println(readData);
+                    }
                 } catch (NumberFormatException e) {
                 } catch (NullPointerException e) {
                 }
@@ -58,15 +71,28 @@ public class Controller {
 
         new Thread(new Task() {
             @Override
-            protected Object call() throws Exception {
+            protected Object call() {
                 selectedPort.openPort();
                 sleep();
-                write("@W39223;");
-                write("@W40008;");
-                write("@W36000");
+                write("@W36240;");      //Port B first 4 input and second 4 output
+
 
                 while (true) {
-                    write("@R35000");
+                    write("@R35000;");
+                    int out = 0;
+                    if ((readData & 1) == 0) {
+                        out = out | 1 << 4;
+                    }
+                    if ((readData & 2) == 0) {
+                        out = out | (1 << 5);
+                    }
+                    if ((readData & 4) == 0) {
+                        out = out | (1 << 6);
+                    }
+                    if ((readData & 8) == 0) {
+                        out = out | (1 << 7);
+                    }
+                    write("@W37" + String.format("%03d", out));
                 }
             }
 
