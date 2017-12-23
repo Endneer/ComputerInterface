@@ -80,19 +80,25 @@ public class Controller {
                 while (true) {
                     write("@R35000;");
                     int out = 0;
-                    if ((readData & 1) == 0) {
+
+                    if ((readData & 1) == 0)
                         out = out | 1 << 4;
-                    }
-                    if ((readData & 2) == 0) {
+                    else out = out & ~(1 << 4);
+
+                    if ((readData & 2) == 0)
                         out = out | (1 << 5);
-                    }
-                    if ((readData & 4) == 0) {
+                    else out = out & ~(1 << 5);
+
+                    if ((readData & 4) == 0)
                         out = out | (1 << 6);
-                    }
-                    if ((readData & 8) == 0) {
+                    else out = out & ~(1 << 6);
+
+                    if ((readData & 8) == 0)
                         out = out | (1 << 7);
-                    }
-                    write("@W37" + String.format("%03d", out));
+                    else out = out & ~(1 << 7);
+
+                    System.out.println("@W37" + String.format("%03d", out) + ";");
+                    write("@W37" + String.format("%03d", out) + ";");
                 }
             }
 
@@ -103,7 +109,7 @@ public class Controller {
 
             public void sleep() {
                 try {
-                    Thread.sleep(50);
+                    Thread.sleep(60);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
