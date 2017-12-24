@@ -8,6 +8,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.input.MouseEvent;
 
+
 public class Controller {
 
     @FXML
@@ -30,6 +31,74 @@ public class Controller {
             list_ports.getItems().add(SerialPort.getCommPorts()[i].getSystemPortName());
         }
         list_ports.getSelectionModel().selectFirst();
+
+        task = new Task() {
+            private int out = 0;
+
+            @Override
+            protected Object call() {
+                try {
+                    selectedPort.openPort();
+                    sleep();
+                    write("@W36240;");      //Port B first 4 input and second 4 output
+                    out = 0;
+                } catch (InterruptedException e) {
+                    return null;
+                }
+
+                int firstTimer = 0;
+                int secondTimer = 0;
+                int thirdTimer = 0;
+                int defaultTimerValue = 2000 / (2 * 60); // desired time divided by (number of writes in loop * duration of sleep)
+
+                while (!isCancelled()) {
+                    try {
+                        write("@R35000;");
+                        if ((readData & 1) == 0) {
+                            out = out | 1 << 4;
+                            firstTimer = defaultTimerValue;
+                        } else if (firstTimer == 0) {
+                            out = out & ~(1 << 4);
+                        } else --firstTimer;
+
+                        if ((readData & 2) == 0) {
+                            out = out | (1 << 5);
+                            secondTimer = defaultTimerValue;
+                        } else if (secondTimer == 0) {
+                            out = out & ~(1 << 5);
+                        } else --secondTimer;
+
+                        if ((readData & 4) == 0) {
+                            out = out | (1 << 6);
+                            thirdTimer = defaultTimerValue;
+                        } else if (thirdTimer == 0) {
+                            out = out & ~(1 << 6);
+                        } else --thirdTimer;
+
+                        if ((readData & 8) == 0)
+                            out = out | (1 << 7);
+                        else out = out & ~(1 << 7);
+
+                        write("@W37" + String.format("%03d", out) + ";");
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+                return null;
+            }
+
+            public void write(String string) throws InterruptedException {
+                selectedPort.writeBytes(string.getBytes(), string.getBytes().length);
+                sleep();
+            }
+
+            public void sleep() throws InterruptedException {
+                Thread.sleep(60);
+            }
+        };
+
+        thread = new Thread(task);
+        thread.setDaemon(true);
     }
 
     public void connect(MouseEvent mouseEvent) {
@@ -68,67 +137,8 @@ public class Controller {
                 }
             }
         });
-
-
-        task = new Task() {
-            @Override
-            protected Object call() {
-                selectedPort.openPort();
-                try {
-                    sleep();
-                    write("@W36240;");      //Port B first 4 input and second 4 output
-
-                } catch (InterruptedException e) {
-                    return null;
-                }
-                while (!isCancelled()) {
-                    try {
-                        write("@R35000;");
-                        int out = 0;
-
-                        if ((readData & 1) == 0)
-                            out = out | 1 << 4;
-                        else out = out & ~(1 << 4);
-
-                        if ((readData & 2) == 0)
-                            out = out | (1 << 5);
-                        else out = out & ~(1 << 5);
-
-                        if ((readData & 4) == 0)
-                            out = out | (1 << 6);
-                        else out = out & ~(1 << 6);
-
-                        if ((readData & 8) == 0)
-                            out = out | (1 << 7);
-                        else out = out & ~(1 << 7);
-
-                        write("@W37" + String.format("%03d", out) + ";");
-                    } catch (InterruptedException e) {
-                        break;
-                    }
-                }
-                return null;
-            }
-
-            public void write(String string) throws InterruptedException {
-                selectedPort.writeBytes(string.getBytes(), string.getBytes().length);
-                sleep();
-            }
-
-            public void sleep() throws InterruptedException {
-
-                Thread.sleep(60);
-
-            }
-        };
-
-        thread = new Thread(task);
-        thread.setDaemon(true);
         thread.start();
     }
 
-    public void disconnect(MouseEvent mouseEvent) {
-        selectedPort.closePort();
-        task.cancel();
-    }
+
 }
