@@ -17,6 +17,8 @@ public class Controller {
     private SerialPort selectedPort;
 
     private int readData = 000;
+    private Task task;
+    private Thread thread;
 
 
     @FXML
@@ -60,7 +62,6 @@ public class Controller {
                         numberOfCharacters = 0;
                         readData = Integer.parseInt(buffer);
                         buffer = "";
-                        System.out.println(readData);
                     }
                 } catch (NumberFormatException e) {
                 } catch (NullPointerException e) {
@@ -69,55 +70,65 @@ public class Controller {
         });
 
 
-        new Thread(new Task() {
+        task = new Task() {
             @Override
             protected Object call() {
                 selectedPort.openPort();
-                sleep();
-                write("@W36240;");      //Port B first 4 input and second 4 output
+                try {
+                    sleep();
+                    write("@W36240;");      //Port B first 4 input and second 4 output
 
-
-                while (true) {
-                    write("@R35000;");
-                    int out = 0;
-
-                    if ((readData & 1) == 0)
-                        out = out | 1 << 4;
-                    else out = out & ~(1 << 4);
-
-                    if ((readData & 2) == 0)
-                        out = out | (1 << 5);
-                    else out = out & ~(1 << 5);
-
-                    if ((readData & 4) == 0)
-                        out = out | (1 << 6);
-                    else out = out & ~(1 << 6);
-
-                    if ((readData & 8) == 0)
-                        out = out | (1 << 7);
-                    else out = out & ~(1 << 7);
-
-                    System.out.println("@W37" + String.format("%03d", out) + ";");
-                    write("@W37" + String.format("%03d", out) + ";");
+                } catch (InterruptedException e) {
+                    return null;
                 }
+                while (!isCancelled()) {
+                    try {
+                        write("@R35000;");
+                        int out = 0;
+
+                        if ((readData & 1) == 0)
+                            out = out | 1 << 4;
+                        else out = out & ~(1 << 4);
+
+                        if ((readData & 2) == 0)
+                            out = out | (1 << 5);
+                        else out = out & ~(1 << 5);
+
+                        if ((readData & 4) == 0)
+                            out = out | (1 << 6);
+                        else out = out & ~(1 << 6);
+
+                        if ((readData & 8) == 0)
+                            out = out | (1 << 7);
+                        else out = out & ~(1 << 7);
+
+                        write("@W37" + String.format("%03d", out) + ";");
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+                return null;
             }
 
-            public void write(String string) {
+            public void write(String string) throws InterruptedException {
                 selectedPort.writeBytes(string.getBytes(), string.getBytes().length);
                 sleep();
             }
 
-            public void sleep() {
-                try {
-                    Thread.sleep(60);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+            public void sleep() throws InterruptedException {
+
+                Thread.sleep(60);
+
             }
-        }).start();
+        };
+
+        thread = new Thread(task);
+        thread.setDaemon(true);
+        thread.start();
     }
 
     public void disconnect(MouseEvent mouseEvent) {
         selectedPort.closePort();
+        task.cancel();
     }
 }
